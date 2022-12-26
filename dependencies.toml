@@ -1,0 +1,9 @@
+[R_packages]
+build = [
+    "bookdown",
+    "kableExtra",
+    "tidyverse",
+]
+dev = [
+    "languageserver",
+]

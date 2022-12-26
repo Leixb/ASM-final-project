@@ -1,0 +1,23 @@
+bookdown::pdf_book:
+    toc: false
+    pandoc_args: "--pdf-engine-opt=-shell-escape"
+    fig_caption: true
+    number_sections: true
+    citation_package: biblatex
+    latex_engine: lualatex
+    extra_dependencies:
+        float:
+        multicol:
+        etoolbox:
+        amssymb:
+        titlesec:
+        footmisc: "bottom"
+    includes:
+        in_header: preamble.tex
+    keep_tex: false
+bookdown::gitbook: default
+html_document:
+    toc: true
+    toc_float:
+        collapsed: false
+        smooth_scroll: true

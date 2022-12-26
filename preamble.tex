@@ -1,0 +1,31 @@
+\makeatletter
+\AtBeginDocument{ %commands run before document
+    \graphicspath{{figures/}{figures/plots/}} % set graphics location
+    % replace maketitle with custom titlepage
+    \renewcommand{\maketitle}{\input{titlepage}} % chktex 27
+
+    % \BeforeBeginEnvironment{shaded}{\begin{minipage}{\linewidth}}
+    % \AfterEndEnvironment{shaded}{\end{minipage}\par}
+    %
+    \makeatletter
+    \renewcommand{\@chapapp}{Part}
+    \makeatother
+
+
+    \definecolor{shadecolor}{HTML}{EBEBEB}
+
+    \@ifpackageloaded{minted}{%
+        \definecolor{codeBg}{HTML}{FFFDE7}%
+        \setminted{%
+            %style=pastie,%
+            frame=lines,%
+            framesep=3mm,%
+            linenos,%
+            breaklines=true,%
+            encoding=utf8,%
+            fontsize=\footnotesize,%
+            bgcolor=codeBg%
+        }%
+    }{}
+} % AtBeginDocument
+\makeatother

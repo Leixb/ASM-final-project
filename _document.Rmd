@@ -1,0 +1,118 @@
+---
+title: "Functional data analysis"
+subtitle: "FPCA and MDS"
+author:
+    - Daniel Arias
+    - Aleix Boné
+    - Emmanuel Werr
+date: "`r format(Sys.Date(), format='%B %d %Y')`"
+classoption: a4paper
+geometry: margin=2cm
+fontsize: 12pt
+line-height: 1.5
+bibliography: [packages.bib]
+tables: true
+output:
+    pdf_document:
+        pandoc_args: "--pdf-engine-opt=-shell-escape"
+        fig_caption: true
+        number_sections: no
+        citation_package: biblatex
+        latex_engine: lualatex
+        extra_dependencies:
+            float:
+            cleveref:
+            multicol:
+            etoolbox:
+            footmisc: "bottom"
+        includes:
+            in_header: preamble.tex
+        keep_tex: false
+    html_document:
+        toc: true
+        toc_float:
+            collapsed: false
+            smooth_scroll: true
+urlcolor: blue
+---
+
+```{r setup, include = FALSE}
+# Knitr output configuration
+
+library(knitr)
+library(kableExtra)
+options(encoding = "UTF-8")
+options(knitr.table.format = function() {
+    if (knitr::is_latex_output()) "latex" else "pipe"
+})
+if (isTRUE(getOption("knitr.in.progress"))) {
+    options(width = 75)
+    # NOTE: This will still affect the options if you use the same R session
+    # after running knitr
+}
+knitr::opts_chunk$set(
+    echo = TRUE,
+    collapse = FALSE,
+    comment = "#>",
+    warning = FALSE,
+    message = FALSE,
+    fig.retina = 2, # Control using dpi
+    fig.width = 5, # generated images
+    fig.height = 4, # generated images
+    fig.pos = "H", # pdf mode
+    fig.align = "center",
+    dpi = if (knitr::is_latex_output()) 72 else 300,
+    out.width = "100%",
+    optipng = "-o1 -quiet"
+)
+output_hook <- function(x, options) {
+    x <- paste0(x, collapse = "\n")
+    paste("\\begin{shaded}", "\\begin{verbatim}", x,
+        "\\end{verbatim}", "\\end{shaded}",
+        sep = "\n"
+    )
+}
+knit_hooks$set(output = output_hook)
+
+if (knitr::is_latex_output()) {
+    if (Sys.which("pygmentize") != "") {
+        minted_hook <- function(x, options) {
+            x <- paste0(x, collapse = "\n")
+            paste("", "\\begin{minted}{R}", x, "\\end{minted}", "", sep = "\n")
+        }
+        usepackage_latex("minted")
+        knit_hooks$set(source = minted_hook)
+        options(tinytex.engine_args = "-shell-escape")
+    }
+}
+```
+
+<!--
+################################################################################
+# Document begin
+################################################################################
+-->
+
+```{r load_tidyverse, include = FALSE}
+library(tidyverse)
+```
+
+```{r child = "partA.Rmd"}
+```
+
+```{r child = "partB.Rmd"}
+```
+
+```{r package-bib, include = FALSE}
+knitr::write_bib(c(
+    "stops",
+    "Rtsne",
+    "vegan"
+), file = "packages.bib")
+```
+
+\pagebreak
+\nocite{*}
+
+# Packages used
+<div id="refs"></div>
