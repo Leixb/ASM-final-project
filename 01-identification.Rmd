@@ -14,18 +14,19 @@ a mean-variance plot. To do so, we group the data in groups of 12
 months and calculate the mean and variance of each group.
 
 ```{r 010-mean-variance, fig.cap="Mean-variance plot"}
-serie <- window(ts(read.table("./data/metro.dat"), start = 1996, freq = 12))
+metro <- window(ts(read.table("./data/metro.dat"), start = 1996, freq = 12))
 
-df <- tibble(passengers = serie, date = time(serie))
+df <- tibble(passengers = metro, date = time(metro))
 df %>%
     group_by(year = floor(date)) %>%
     summarise(mean = mean(passengers), var = var(passengers)) %>%
     ggplot(aes(x = mean, y = var)) +
     geom_point() +
     geom_path(alpha = 0.1) +
-    geom_text(aes(label = year), vjust = -0.5, hjust = 0.5,
-              position = position_dodge(width = .9)
-              ) +
+    geom_text(aes(label = year),
+        vjust = -0.5, hjust = 0.5,
+        position = position_dodge(width = .9)
+    ) +
     labs(x = "Mean", y = "Variance")
 ```
 
@@ -39,12 +40,18 @@ no need to apply a transformation to the data.
 ```{r 010-boxplot, fig.cap="Boxplot of the data grouped by year"}
 df %>%
     mutate(year = floor(date)) %>%
-    ggplot(aes(group=year, x = year, y = passengers)) +
+    ggplot(aes(group = year, x = year, y = passengers)) +
     geom_boxplot() +
     labs(x = "Year", y = "Thousands of Passengers")
 ```
 
 ### Constant mean
+
+```{r 010-decomp, fig.cap="Decomposition of the time series"}
+metro %>%
+    decompose(filter = rep(1 / 12, 12)) %>%
+    autoplot() & scale_x_continuous(minor_breaks = seq(1996, 2020, 1))
+```
 
 Looking at the time series plot of \@ref(fig:010-time-series), we can
 see that the mean of the data is not constant. The mean is increasing
@@ -53,12 +60,12 @@ differencing to the data to make it stationary. Applying differencing
 with lag 12 will make the mean constant.
 
 ```{r 010-diff, echo=TRUE}
-serie_d12 <- diff(serie, lag = 12)
+metro_d12 <- diff(metro, lag = 12)
 ```
 
 ```{r 010-time-series, fig.cap="Time series of the data"}
 
-df_diff <- tibble(passengers = serie_d12, date = time(serie_d12))
+df_diff <- tibble(passengers = metro_d12, date = time(metro_d12))
 
 ggplot(df_diff, aes(x = date, y = passengers)) +
     geom_line() +
@@ -76,7 +83,7 @@ We use the `monthplot` function to visualize the trend for each
 month.
 
 ```{r 010-seasonal-difference, fig.cap="Seasonal difference"}
-ggmonthplot(serie) + labs(y = "Thousands of Passengers")
+ggmonthplot(metro) + labs(y = "Thousands of Passengers")
 ```
 
 As we can see, there 
@@ -87,7 +94,7 @@ Let's now check the autocorrelation and partial autocorrelation of the
 time series. The results are shown in figure \@ref(fig:010-acf-pacf).
 
 ```{r 010-acf-pacf, echo=FALSE, dev="tikz", fig.width=7, fig.cap="ACF and PACF of the time series"}
-ggAcf(serie_d12) + plot_spacer() + ggPacf(serie_d12) +
+ggAcf(metro_d12) + plot_spacer() + ggPacf(metro_d12) +
     plot_layout(widths = c(4, 0.5, 4)) &
     ylim(-1, 1) & labs(title = "")
 ```

@@ -5,10 +5,10 @@
 The dataset chosen for the project is
 the Barcelona metro passengers (thousands of passengers). Monthly Data from
 1996 to 2019 [@noauthor_transporte_nodate].
-Figure \@ref(fig:010-plot) shows the plot of the time series.
+Figure \@ref(fig:000-plot) shows the plot of the time series.
 
 ```{r 000-data}
-serie <- window(ts(read.table("./data/metro.dat"), start = 1996, freq = 12))
+metro <- window(ts(read.table("./data/metro.dat"), start = 1996, freq = 12))
 ```
 
 The dataset has information on the number of transported passengers on the
@@ -23,7 +23,7 @@ has increased the use of public transport.
 
 ```{r 000-plot, echo=FALSE, fig.width=6, dev="tikz", fig.cap="Barcelona monthly metro passengers"}
 library(tidyverse)
-ggplot(data.frame(serie), aes(x = time(serie), y = serie)) +
+ggplot(data.frame(metro), aes(x = time(metro), y = metro)) +
     geom_line() +
     labs(title = "Barcelona metro passengers", y = "Thousands of Passengers") +
     # theme_bw() +
