@@ -3,6 +3,9 @@ build = [
     "bookdown",
     "kableExtra",
     "tidyverse",
+    "tikzDevice",
+    "forecast",
+    "patchwork",
 ]
 dev = [
     "languageserver",

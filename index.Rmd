@@ -1,5 +1,5 @@
 ---
-title: "ARIMAX Model for Real Case Proposed Series"
+title: "ARIMAX Model for Barcelona metro passengers"
 subtitle: "Advanced Statistical Modelling"
 author:
     - Aleix Boné
@@ -33,16 +33,16 @@ if (isTRUE(getOption("knitr.in.progress"))) {
     # after running knitr
 }
 knitr::opts_chunk$set(
-    echo = TRUE,
+    echo = FALSE,
     collapse = FALSE,
     comment = "#>",
     warning = FALSE,
     message = FALSE,
     fig.retina = 2, # Control using dpi
-    fig.width = 5, # generated images
+    fig.width = 6, # generated images
     fig.height = 4, # generated images
     fig.pos = "H", # pdf mode
-    dev = "png",
+    dev = "tikz",
     fig.align = "center",
     dpi = if (knitr::is_latex_output()) 72 else 300,
     out.width = "100%",
@@ -68,4 +68,7 @@ if (knitr::is_latex_output()) {
         options(tinytex.engine_args = "-shell-escape")
     }
 }
+
+library(tidyverse)
+theme_set(theme_bw())
 ```

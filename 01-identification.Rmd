@@ -1,1 +1,93 @@
 # Identification
+
+```{r 01-libraries, include=FALSE}
+library(forecast)
+library(patchwork)
+```
+
+## Stationarity
+
+### Constant variance
+
+In order to check for non-constant variance in the time series, we can use
+a mean-variance plot. To do so, we group the data in groups of 12
+months and calculate the mean and variance of each group.
+
+```{r 010-mean-variance, fig.cap="Mean-variance plot"}
+serie <- window(ts(read.table("./data/metro.dat"), start = 1996, freq = 12))
+
+df <- tibble(passengers = serie, date = time(serie))
+df %>%
+    group_by(year = floor(date)) %>%
+    summarise(mean = mean(passengers), var = var(passengers)) %>%
+    ggplot(aes(x = mean, y = var)) +
+    geom_point() +
+    geom_path(alpha = 0.1) +
+    geom_text(aes(label = year), vjust = -0.5, hjust = 0.5,
+              position = position_dodge(width = .9)
+              ) +
+    labs(x = "Mean", y = "Variance")
+```
+
+With the mean variance plot of \@ref(fig:010-mean-variance), there is
+no apparent trend in the variance of the data. This suggests that the
+time series is stationary. The visualization of \@ref(fig:010-boxplot)
+also shows that the variance is more or less sustained over time, except
+a few outliers. Therefore, the variance is constant and there is
+no need to apply a transformation to the data.
+
+```{r 010-boxplot, fig.cap="Boxplot of the data grouped by year"}
+df %>%
+    mutate(year = floor(date)) %>%
+    ggplot(aes(group=year, x = year, y = passengers)) +
+    geom_boxplot() +
+    labs(x = "Year", y = "Thousands of Passengers")
+```
+
+### Constant mean
+
+Looking at the time series plot of \@ref(fig:010-time-series), we can
+see that the mean of the data is not constant. The mean is increasing
+over time. This is a sign of non-stationarity. We need to apply
+differencing to the data to make it stationary. Applying differencing
+with lag 12 will make the mean constant.
+
+```{r 010-diff, echo=TRUE}
+serie_d12 <- diff(serie, lag = 12)
+```
+
+```{r 010-time-series, fig.cap="Time series of the data"}
+
+df_diff <- tibble(passengers = serie_d12, date = time(serie_d12))
+
+ggplot(df_diff, aes(x = date, y = passengers)) +
+    geom_line() +
+    labs(x = "Year", y = "Thousands of Passengers")
+```
+
+
+### Seasonal difference
+
+Given that the data comes from a monthly time series, and that
+the use of public transport is probably affected by the season,
+we can start by checking for yearly seasonality.
+
+We use the `monthplot` function to visualize the trend for each
+month.
+
+```{r 010-seasonal-difference, fig.cap="Seasonal difference"}
+ggmonthplot(serie) + labs(y = "Thousands of Passengers")
+```
+
+As we can see, there 
+
+## ACF and PACF
+
+Let's now check the autocorrelation and partial autocorrelation of the
+time series. The results are shown in figure \@ref(fig:010-acf-pacf).
+
+```{r 010-acf-pacf, echo=FALSE, dev="tikz", fig.width=7, fig.cap="ACF and PACF of the time series"}
+ggAcf(serie_d12) + plot_spacer() + ggPacf(serie_d12) +
+    plot_layout(widths = c(4, 0.5, 4)) &
+    ylim(-1, 1) & labs(title = "")
+```

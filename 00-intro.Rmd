@@ -1,1 +1,37 @@
 # Introduction
+
+## Dataset
+
+The dataset chosen for the project is
+the Barcelona metro passengers (thousands of passengers). Monthly Data from
+1996 to 2019 [@noauthor_transporte_nodate].
+Figure \@ref(fig:010-plot) shows the plot of the time series.
+
+```{r 000-data}
+serie <- window(ts(read.table("./data/metro.dat"), start = 1996, freq = 12))
+```
+
+The dataset has information on the number of transported passengers on the
+Barcelona metropolitan area metro network. In the last few years,
+the government of the city of Barcelona has been pushing towards a
+reduction of cars in the city. The aim is to reduce contamination and
+pollution as well as make the city safer for pedestrians
+\cite{324cat_reduir_2022,noauthor_pla_nodate,noauthor_pla_2018}.
+
+This move towards reducing the use of private transport in Barcelona
+has increased the use of public transport.
+
+```{r 000-plot, echo=FALSE, fig.width=6, dev="tikz", fig.cap="Barcelona monthly metro passengers"}
+library(tidyverse)
+ggplot(data.frame(serie), aes(x = time(serie), y = serie)) +
+    geom_line() +
+    labs(title = "Barcelona metro passengers", y = "Thousands of Passengers") +
+    # theme_bw() +
+    scale_x_continuous(minor_breaks = seq(1996, 2020, 1)) +
+    scale_y_continuous(limits = c(0, 40000), expand = c(0, 0)) +
+    theme(
+          panel.grid.minor.x = element_line(colour = 4, linetype = 2),
+          panel.grid.major.x = element_line(colour = 4, linetype = 2)
+          ) +
+    labs(x = "Year")
+```
