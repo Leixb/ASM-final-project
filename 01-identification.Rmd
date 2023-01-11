@@ -1,6 +1,7 @@
 # Identification
 
 ```{r 01-libraries, include=FALSE}
+library(tidyverse)
 library(forecast)
 library(patchwork)
 ```
@@ -45,7 +46,11 @@ df %>%
     labs(x = "Year", y = "Thousands of Passengers")
 ```
 
-### Constant mean
+### Seasonality
+
+Given that the data comes from a monthly time series, and that
+the use of public transport is probably affected by the season,
+we check some plots to see if that is the case:
 
 ```{r 010-decomp, fig.cap="Decomposition of the time series"}
 metro %>%
@@ -53,48 +58,180 @@ metro %>%
     autoplot() & scale_x_continuous(minor_breaks = seq(1996, 2020, 1))
 ```
 
-Looking at the time series plot of \@ref(fig:010-time-series), we can
-see that the mean of the data is not constant. The mean is increasing
-over time. This is a sign of non-stationarity. We need to apply
-differencing to the data to make it stationary. Applying differencing
-with lag 12 will make the mean constant.
-
-```{r 010-diff, echo=TRUE}
-metro_d12 <- diff(metro, lag = 12)
-```
-
-```{r 010-time-series, fig.cap="Time series of the data"}
-
-df_diff <- tibble(passengers = metro_d12, date = time(metro_d12))
-
-ggplot(df_diff, aes(x = date, y = passengers)) +
-    geom_line() +
-    labs(x = "Year", y = "Thousands of Passengers")
-```
-
-
-### Seasonal difference
-
-Given that the data comes from a monthly time series, and that
-the use of public transport is probably affected by the season,
-we can start by checking for yearly seasonality.
-
-We use the `monthplot` function to visualize the trend for each
-month.
-
 ```{r 010-seasonal-difference, fig.cap="Seasonal difference"}
 ggmonthplot(metro) + labs(y = "Thousands of Passengers")
 ```
 
-As we can see, there 
+```{r 010-seasonplot, fig.cap="Seasonal plot"}
+ggseasonplot(metro, year.labels = TRUE)
+```
+
+Doing a `monthplot` as shown in \@ref(fig:010-seasonal-difference),
+we can see that the data has a yearly seasonality. If we decompose
+the series, we obtain the plot shown in \@ref(fig:010-decomp).
+
+We can observe a clear seasonal pattern, people travel less in august,
+where most people have holidays, and thus they use less public transport.
+
+We eliminate the seasonality by applying a seasonal difference
+$(1 -B^{12}) X_t$.
+
+```{r 010-seasonal-diff, echo=TRUE}
+d12metro <- diff(metro, lag = 12)
+```
+
+### Constant mean
+
+Once we have removed the seasonality, we can check for a constant
+mean.
+
+```{r 010-regular-diff, echo=TRUE}
+d1d12metro <- diff(d12metro, lag = 1)
+d1d1d12metro <- diff(d1d12metro, lag = 1)
+```
+
+```{r 010-time-series, fig.cap="Transformation into stationary series"}
+pd12 <- ggplot(NULL, aes(x = time(d12metro), y = d12metro)) +
+    geom_line() +
+    geom_hline(yintercept = mean(d12metro), linewidth = 1, color = 2) +
+    labs(
+        title = "$(1-B^{12})X_t$",
+        subtitle = paste0("Variance: ", round(var(d12metro))),
+        y = "\\texttt{d12metro}"
+    )
+
+pd1d12 <- ggplot(NULL, aes(x = time(d1d12metro), y = d1d12metro)) +
+    geom_line() +
+    geom_hline(yintercept = mean(d1d12metro), linewidth = 1, color = 2) +
+    labs(
+        title = "$(1-B)(1-B^{12})X_t$",
+        subtitle = paste0("Variance: ", round(var(d1d12metro))),
+        y = "\\texttt{d1d12metro}"
+    )
+
+# pd1d1d12 <- ggplot(NULL, aes(x = time(d1d1d12metro), y = d1d1d12metro)) +
+#     geom_line() +
+#     geom_hline(yintercept = mean(d1d1d12metro), linewidth = 1, color = 2) +
+#     labs(
+#         title = "$(1-B)(1-B)(1-B^{12})X_t$",
+#         subtitle = paste0("Variance: ", round(var(d1d1d12metro))),
+#         y = "\\texttt{d1d1d12metro}"
+#     )
+
+pd12 + pd1d12 &
+    labs(x = "Year") &
+    scale_x_continuous(minor_breaks = seq(1996, 2020, 1))
+```
+
+In figure \@ref(fig:010-time-series), we can see that without
+applying a regular difference, we do not obtain a constant mean.
+With one regular difference, the mean seems constant, 
+if we check the variance, for a second regular difference, the variance
+increases, indicating that a second regular difference is **not** needed:
+
+```{r 010-variance, fig.width=3, fig.cap="Variance values"}
+tibble(
+    diff = c("0", "1", "2"),
+    var = c(var(d12metro), var(d1d12metro), var(d1d1d12metro))
+) %>%
+    ggplot(aes(x = diff, y = var)) +
+    geom_col() +
+    geom_text(aes(label = round(var)), vjust = -0.5, hjust = 0.5) +
+    labs(x = "Regular differences", y = "Variance")
+```
+
+Moreover, looking at the variance values, the variance also increases with
+the first regular difference, which would indicate that we are
+over-differencing the data and that we should not apply a regular difference.
+
+However, \@ref(fig:010-time-series) does not seem to display a constant mean,
+so we consider the first regular difference as an adequate transformation.
+
+Thus, our proposed transformation is:
+\begin{equation*}
+W_t = (1-B)(1-B^{12})X_t
+\end{equation*}
+and the resulting double differenced series (1 seasonal with $s=12$ and 1 regular) `d1d12metro` is considered stationary with seemingly
+zero mean. We have that: $d=1$, $D=1$ and $s=12$.
+
 
 ## ACF and PACF
 
 Let's now check the autocorrelation and partial autocorrelation of the
-time series. The results are shown in figure \@ref(fig:010-acf-pacf).
+time series. An analyze them in order
+to choose the adequate ARIMA model.
 
-```{r 010-acf-pacf, echo=FALSE, dev="tikz", fig.width=7, fig.cap="ACF and PACF of the time series"}
-ggAcf(metro_d12) + plot_spacer() + ggPacf(metro_d12) +
+First, we are gonna check the ACF and PACF of `d12metro`, that is,
+the series without the regular difference.
+
+#### Without regular difference
+
+```{r 010-acf-pacf-non-regular, echo=FALSE, dev="tikz", fig.width=7, fig.cap="ACF and PACF of series without regular difference"}
+ggAcf(d12metro, lag.max = 48) + plot_spacer() + ggPacf(d12metro, lag.max = 48) +
+    plot_annotation(title = "Series: \\texttt{d12metro}") +
     plot_layout(widths = c(4, 0.5, 4)) &
-    ylim(-1, 1) & labs(title = "")
+    ylim(-1, 1) & labs(title = "") &
+    theme(aspect.ratio = 1) &
+    scale_x_continuous(
+        breaks = seq(0, 48, 12),
+        # minor_breaks = seq(3, 24, 3)
+    )
 ```
+
+On the PACF plot, we can see strong correlation at lag 1, 2, 3 and a decreasing
+pattern in the ACF, which suggests an $AR(3)$ model. For the seasonal
+components, we see a strong correlation in the ACF at lag 12,
+and a decreasing pattern in the PACF,
+which suggests an $MA(1)$ model. Thus, we propose the following
+SARIMA model: $SARIMA(3,0,0)(0,0,1)_{12}$.
+
+If we now check the model without the regular difference and test the T-ratios
+of the coefficients, we find that the intercept is statistically significant,
+therefore, the data is not stationary, as suspected, we need to apply a
+the regular difference.
+
+```{r 010-model, echo=TRUE}
+(mod <- arima(d12metro, order = c(3, 0, 0), seasonal = list(order = c(0, 0, 1), period = 12)))
+abs(mod$coef / sqrt(diag(mod$var.coef)))
+```
+
+#### With regular difference
+
+Now, we consider the series `d1d12metro`, that is, the series with the
+regular difference.
+
+```{r 010-acf-pacf-regular, echo=FALSE, dev="tikz", fig.width=7, fig.cap="ACF and PACF of the series with regular difference"}
+ggAcf(d1d12metro, lag.max = 48) + plot_spacer() + ggPacf(d1d12metro, lag.max = 48) +
+    plot_annotation(title = "Series: \\texttt{d1d12metro}") +
+    plot_layout(widths = c(4, 0.5, 4)) &
+    ylim(-1, 1) & labs(title = "") &
+    theme(aspect.ratio = 1) &
+    scale_x_continuous(
+        breaks = seq(0, 48, 12),
+        # minor_breaks = seq(3, 24, 3)
+    )
+```
+
+This ACF-PACF plot is not as easy to interpret as the previous one, we can
+interpret at least these two candidate models:
+
+- $AR(2)$: since, we can see a strong correlation at lags 1 and 2 of the PACF
+  and a decreasing pattern in the ACF.
+- $MA(1)$: we can see a strong correlation at lag 1 in the ACF and a decreasing
+  pattern in the PACF.
+
+For the seasonal component, we see a strong correlation at lag 1 and 12 of the
+ACF and nothing relevant in the PACF, so we opt for a $SMA(2)$.
+
+Our models are: $SARIMA(2,0,0)(0,0,2)_{12}$ and $SARIMA(0,0,1)(0,0,2)_{12}$ on
+the transformed data series `d1d12metro`.
+
+```{r 010-models, echo=TRUE}
+(mod1 <- arima(d1d12metro, order = c(2, 0, 0), seasonal = list(order = c(0, 0, 2), period = 12)))
+(mod2 <- arima(d1d12metro, order = c(0, 0, 1), seasonal = list(order = c(0, 0, 2), period = 12)))
+
+abs(mod1$coef / sqrt(diag(mod1$var.coef)))
+abs(mod2$coef / sqrt(diag(mod2$var.coef)))
+```
+
+

@@ -1,1 +1,275 @@
 # Validation
+
+```{r 030-load}
+library(kableExtra)
+source("./validation.R")
+```
+
+Now, we use the validation function provided in the laboratory sessions
+to evaluate both models and analyze their residuals.
+
+## Residual analysis
+
+### Model 1
+
+```{r 030-validation-mod1, echo=TRUE}
+validation(mod1, d1d12metro)
+```
+
+The residuals seem to be normally distributed when looking at the
+QQ-plot, histogram and square root of the residuals. The only
+issue is a slightly longer tail on the higher residuals
+which can be seen both in the histogram and QQ-plot. These
+may be caused by outliers.
+
+The Shapiro, Anderson-Darling and Jarque Bera normality tests all
+reject the NULL hypothesis that the residuals are normally
+distributed with $p < 0.05$
+
+The Breusch-Pagan test for homoscedasticity fails to reject the NULL
+hypothesis of homoscedasticity (with $p = 0.6352$), so we can assume 
+homoscedasticity.
+
+The Durbin-Watson test does not reject the null hypothesis of no
+autocorrelation (with $p = 0.5477$).
+
+The autocorrelation plots of both the residuals and squared residuals
+are consistent with no autocorrelation.
+
+The sample and theoretical ACF and PACF plots are consistent with
+each other.
+
+### Model 2
+
+```{r 030-validation-mod2, echo=TRUE}
+validation(mod2, d1d12metro)
+```
+
+The plots of residuals seem to be normally distributed as well, and
+again, there seems to be a slight longer tail on the distribution, but
+it seems better than in the previous model.
+This is confirmed by the normality tests, were Shapiro and
+Anderson-Darling reject the null hypothesis of normality with $p >= 0.05$,
+and only Jarque Bera fails to reject it with $p = 0.02467$
+
+The Breusch-Pagan test does not reject homoscedasticity.
+
+The Durbin-Watson test does not reject the null hypothesis of no autocorrelation
+and the plots of residuals and squared residuals are consistent with no
+autocorrelation as well.
+
+Finally, the sample and theoretical ACF and PACF plots are consistent
+with each other.
+
+### Summary on the residuals
+
+Both models behave similarly, but the first model does not
+have a normal distribution of the residuals whereas the second
+one does.
+
+## Infinite models
+
+Now, we analyze the expressions of the $AR$ and $MA$ infinite models.
+
+### Model 1
+
+Model 1 is an $AR(2)$ model, so we can write it as:
+\begin{align*}
+X_t &= \frac{1}{(1-\phi_1B)(1-\phi_2B)}Z_t \\
+&= \left( \sum_{i=0}^\infty \phi_1^iB^i \right)
+\left( \sum_{j=0}^\infty \phi_2^jB^j \right) Z_t
+\end{align*}
+
+With $\phi_1 =`r mod1$model$phi[1]`$ and $\phi_2 =`r mod1$model$phi[2]`$.
+The modulus of the characteristic polynomial roots are:
+
+```{r 030-infinite-mod1, echo=TRUE}
+(PhiMod1 <- polyroot(c(1, -mod1$model$phi)) %>%
+    Mod())
+(ThetaMod1 <- polyroot(c(1, mod1$model$theta)) %>%
+    Mod())
+```
+
+Since all the roots of $\phi_q(B)$ have modulus `r PhiMod1[1]` which is greater than 1, $|B| > 1$
+, the model is **causal**. 
+
+Additionally, it is **invertible** since all the roots of of $\theta_p(B)$ have
+modulus greater than 1.
+
+The $AIC$ value is `r mod1$aic`, $BIC = `r AIC(mod1, k = log(length(metro)))`$ and $\sigma_X^2 = `r mod1$sigma2`$.
+
+### Model 2
+
+Model 2 is an $MA(1)$ model, so we can write it as:
+\begin{align*}
+\frac{1}{1 + \theta B}X_t &= Z_t \\
+\sum_{i=0}^\infty \theta^iB^i X_t &= Z_t
+\end{align*}
+
+With $\theta =`r mod1$model$theta[1]`$.
+The modulus of the characteristic polynomial roots are:
+
+```{r 030-infinite-mod2, echo=TRUE}
+(PhiMod2 <- polyroot(c(1, -mod2$model$phi)) %>%
+    Mod())
+(ThetaMod2 <- polyroot(c(1, mod2$model$theta)) %>%
+    Mod())
+```
+
+Since all the roots are greater than 1, they are outside the unit circle and
+therefore, the model is **invertible**. However, the model is **not causal**
+since there are no roots of $\phi_q(B)$.
+
+The $AIC$ value is `r mod2$aic`, $BIC = `r AIC(mod2, k = log(length(metro)))`$ and $\sigma_X^2 = `r mod2$sigma2`$.
+
+## Stability
+
+To check for stability, we remove the last 12 observations and see if the models
+obtained are similar to the models with the full sample.
+
+### Model 1
+
+```{r 030-stability-mod1, echo=TRUE}
+ultim <- c(2018, 12)
+
+pdq <- c(2, 1, 0)
+PDQ <- c(0, 1, 1)
+
+serie1 <- window(metro, end = ultim + c(1, 0))
+serie2 <- window(metro, end = ultim)
+
+(mod1_full <- arima(serie1, order = pdq, seasonal = list(order = PDQ, period = 12)))
+(mod1_part <- arima(serie2, order = pdq, seasonal = list(order = PDQ, period = 12)))
+```
+
+Clearly, the models are similar in terms of sign, magnitude and significance.
+This means that the stability is preserved in the last year.
+
+### Model 2
+
+```{r 030-stability-mod2, echo=TRUE}
+pdq <- c(0, 1, 1)
+PDQ <- c(0, 1, 1)
+
+(mod2_full <- arima(serie1, order = pdq, seasonal = list(order = PDQ, period = 12)))
+(mod2_part <- arima(serie2, order = pdq, seasonal = list(order = PDQ, period = 12)))
+```
+
+Again, the stability is preserved in the last year for model 2.
+
+## Predictive power
+
+Now, we perform out of sample predictions using the models obtained,
+to check if they correctly predict the data of the last year.
+
+### Model 1
+
+```{r 030-predict-mod1, echo=TRUE}
+pred1 <- predict(mod1_part, n.ahead = 12)
+
+pr <- pred1$pred
+obs <- window(metro, start = ultim)
+mod.RMSE1 <- sqrt(sum((obs - pr)^2) / 12)
+mod.MAE1 <- sum(abs(obs - pr)) / 12
+mod.RMSPE1 <- sqrt(sum(((obs - pr) / obs)^2) / 12)
+mod.MAPE1 <- sum(abs(obs - pr) / obs) / 12
+mod1.meanCI <- 1.96 * 2 * mean(pred1$se)
+
+(mod1.stats <- data.frame("RMSE" = mod.RMSE1, "MAE" = mod.MAE1, "RMSPE" = mod.RMSPE1, "MAPE" = mod.MAPE1,
+                          "mean CI" = mod1.meanCI)) %>%
+    kable(booktabs = TRUE, caption = "Model 1 metrics")
+
+```
+
+```{r 030-predict-mod1-plot, fig.cap="Out-of-sample Predictions of model 1"}
+
+df <- tibble(passengers = metro, date = time(metro))
+dfpred1 <- tibble(passengers = pred1$pred, date = time(pred1$pred), se = pred1$se)
+
+# add last column of df to dfpred1
+lst <- tail(serie2, 1)
+dfpred1 %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    ) %>%
+    ggplot(aes(x = date, y = passengers)) +
+    geom_line(data = df) +
+    geom_point(data = df) +
+    geom_line(color = 2) +
+    geom_point(color = 2) +
+    geom_line(aes(y = passengers + 1.96 * se), linetype = "dashed", color = 2) +
+    geom_line(aes(y = passengers - 1.96 * se), linetype = "dashed", color = 2) +
+    labs(
+        title = "Predictions of model 1",
+        x = "Time",
+        y = "Passengers"
+    ) +
+    lims(x = c(2017, NA))
+```
+
+As we can see, the model adequately predicts the values of the following year
+within its 95% confidence interval.
+
+### Model 2
+
+```{r 030-mod2, echo=TRUE}
+pred2 <- predict(mod2_part, n.ahead = 12)
+
+pr <- pred2$pred
+obs <- window(metro, start = ultim)
+mod.RMSE1 <- sqrt(sum((obs - pr)^2) / 12)
+mod.MAE1 <- sum(abs(obs - pr)) / 12
+mod.RMSPE1 <- sqrt(sum(((obs - pr) / obs)^2) / 12)
+mod.MAPE1 <- sum(abs(obs - pr) / obs) / 12
+mod2.meanCI <- 1.96 * 2 * mean(pred2$se)
+
+(mod2.stats <- data.frame("RMSE" = mod.RMSE1, "MAE" = mod.MAE1, "RMSPE" = mod.RMSPE1, "MAPE" = mod.MAPE1,
+                          "mean CI" = mod2.meanCI)) %>%
+    kable(booktabs = TRUE, caption="Model 2 metrics")
+
+```
+
+```{r 030-mod2-plot, fig.cap="Out-of-sample Predictions of model 2"}
+df <- tibble(passengers = metro, date = time(metro))
+dfpred2 <- tibble(passengers = pred2$pred, date = time(pred2$pred), se = pred2$se)
+# we add last column of df to dfpred2 so that lines connect
+lst <- tail(serie2, 1)
+dfpred2 %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    ) %>%
+    ggplot(aes(x = date, y = passengers)) +
+    geom_line(data = df) +
+    geom_point(data = df) +
+    geom_line(color = 2) +
+    geom_point(color = 2) +
+    geom_line(aes(y = passengers + 1.96 * se), linetype = "dashed", color = 2) +
+    geom_line(aes(y = passengers - 1.96 * se), linetype = "dashed", color = 2) +
+    labs(
+        title = "Predictions of model 2",
+        x = "Time",
+        y = "Passengers"
+    ) +
+    lims(x = c(2017, NA))
+```
+
+Again, the model correctly predicts the data within its 95% confidence
+interval. The main visual difference between the predictions of model
+1 and 2 are the confidence intervals, which are smaller in model 2.
+
+## Best model
+
+Regarding the metrics, model 2 has slightly lower values in all metrics
+on the out-of-sample predictions. The mean-CI of model 1 is
+`r mod1.meanCI` while model 2 has `r mod2.meanCI`. Additionally, all the
+adequacy criterion values ($AIC$, $BIC$ and $\sigma^2$) are better in model 2.
+
+Therefore, the best predictive model is **model 2**.

@@ -26,7 +26,6 @@ library(tidyverse)
 ggplot(data.frame(metro), aes(x = time(metro), y = metro)) +
     geom_line() +
     labs(title = "Barcelona metro passengers", y = "Thousands of Passengers") +
-    # theme_bw() +
     scale_x_continuous(minor_breaks = seq(1996, 2020, 1)) +
     scale_y_continuous(limits = c(0, 40000), expand = c(0, 0)) +
     theme(

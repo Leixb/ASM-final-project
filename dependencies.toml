@@ -6,6 +6,9 @@ build = [
     "tikzDevice",
     "forecast",
     "patchwork",
+    "lmtest",
+    "nortest",
+    "tseries",
 ]
 dev = [
     "languageserver",

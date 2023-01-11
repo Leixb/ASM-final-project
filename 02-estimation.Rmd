@@ -1,1 +1,73 @@
 # Estimation
+
+Now, we estimate the models $SARIMA(2,0,0)(0,0,2)_{12}$ and $SARIMA(0,0,1)(0,0,2)_{12}$ on
+the transformed data series `d1d12metro` and check the T-ratios to see if the
+coefficients are significant.
+
+```{r 020-models, echo=TRUE}
+(mod1_1 <- arima(d1d12metro,
+    order = c(2, 0, 0),
+    seasonal = list(order = c(0, 0, 2), period = 12)
+))
+(mod2_1 <- arima(d1d12metro,
+    order = c(0, 0, 1),
+    seasonal = list(order = c(0, 0, 2), period = 12)
+))
+
+abs(mod1_1$coef / sqrt(diag(mod1_1$var.coef)))
+abs(mod2_1$coef / sqrt(diag(mod2_1$var.coef)))
+```
+
+The T-ratios of the intercepts are not significant (below 2), which is good. However,
+the T-ratios for the second order seasonal MA coefficient are also not
+significant. We should remove them from the models:
+
+```{r 020-models2, echo=TRUE}
+(mod1_2 <- arima(d1d12metro,
+    order = c(2, 0, 0),
+    seasonal = list(order = c(0, 0, 1), period = 12)
+))
+(mod2_2 <- arima(d1d12metro,
+    order = c(0, 0, 1),
+    seasonal = list(order = c(0, 0, 1), period = 12)
+))
+
+abs(mod1_2$coef / sqrt(diag(mod1_2$var.coef)))
+abs(mod2_2$coef / sqrt(diag(mod2_2$var.coef)))
+```
+
+Now, we can fit the new models with the differencing
+to the original data series `metro`:
+$SARIMA(2,1,0)(0,1,1)_{12}$ and $SARIMA(0,1,1)(0,1,1)_{12}$.
+Recall that we do not need any scale transformation on the original
+data series since the variance was already constant.
+
+```{r 020-models3, echo=TRUE}
+(mod1_3 <- arima(metro,
+    order = c(2, 1, 0),
+    seasonal = list(order = c(0, 1, 1), period = 12)
+))
+(mod2_3 <- arima(metro,
+    order = c(0, 1, 1),
+    seasonal = list(order = c(0, 1, 1), period = 12)
+))
+
+abs(mod1_3$coef / sqrt(diag(mod1_3$var.coef)))
+abs(mod2_3$coef / sqrt(diag(mod2_3$var.coef)))
+```
+
+All the coefficients are still significant and the removal of
+the intercept reduced the $AIC$ slightly in both models.
+
+The statistical expressions of our models are:
+\begin{align*}
+\phi_1(B)\phi_2(B)(1-B)(1-B^{12})X_t &= \Theta(B^{12})Z_t \tag{1} \\
+(1-B)(1-B^{12})X_t &= \theta_1(B)\Theta_1(B^{12})Z_t \tag{2} \\[1em]
+Z_t &\sim \mathcal N(0, \sigma^2)
+\end{align*}
+
+```{r 020-models-final}
+# save the best models
+mod1 <- mod1_3
+mod2 <- mod2_3
+```

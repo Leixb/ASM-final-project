@@ -1,1 +1,310 @@
 # Outlier Treatment
+
+For the outlier treatment, we will use the functions defined
+in the script provided in class: `atipics2.R`.
+
+```{r 050-load}
+source("./atipics2.R")
+```
+
+## Calendar effects
+
+```{r 050-calendar-1}
+mod.atip <- outdetec(mod2, dif = c(1, 12), crit = 2.8, LS = TRUE)
+
+
+atipics <- mod.atip$atip[order(mod.atip$atip[, 1]), ]
+meses <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+data.frame(atipics,
+    Date = paste(meses[(atipics[, 1] - 1) %% 12 + 1], start(metro)[1] + ((atipics[, 1] - 1) %/% 12)),
+    perc.Obs = atipics[, 3] * 100
+) %>% kable(booktabs = TRUE, caption = "Identified Outliers")
+```
+
+The estimated residual variance is $\sigma = `r mod.atip$sigma`$
+
+In table \@ref(tab:050-calendar-1) we can see the outliers we found.
+All observations before 2001 are difficult to explain since there is
+not much information on the internet. In 2001 the ``ATM'' was created
+and the regulation of prices was changed. Additionally, in 2002,
+Spain started using the Euro. This may explain the Transitory Change of
+observation 76, but it quickly fades away in less than
+half a year. The multiple additive outliers in April months of
+1999, 2005 and 2008 may be due to Easter holidays or rainy weather events
+in April. In September 2012 there is a level shift (LS) which persists until
+the end of the data, this may be explained by the economic crisis of 2012, when
+Spain entered recession once again (after the crisis of 2008). Additionally,
+that same year the ticket fares saw their biggest price increase to date of
+1 euro for the now defunct T-10
+[@noauthor_asi_nodate] [@noauthor_evolucion_2016].
+
+```{r 050-calendar-plot, fig.cap="Comparison plot of linear data and original"}
+metro.lin <- lineal(metro, mod.atip$atip)
+
+ggplot(NULL, aes(x = time(metro))) +
+    geom_line(aes(y = metro, color = "original")) +
+    geom_line(aes(y = metro.lin, color = "without outliers")) +
+    labs(x = "Date", y = "Passengers") +
+    scale_x_continuous(minor_breaks = seq(1996, 2020, 1)) +
+    theme(legend.position = c(0.87, 0.15), legend.title = element_blank())
+```
+
+Looking at the plot, we can see that the period from 1998 to 2012 is different
+from the rest.
+
+```{r 050-calendar-diff, fig.cap="Difference between lineal data and original"}
+out.diff <- metro - metro.lin
+ggplot(NULL, aes(x = time(out.diff), y = out.diff)) +
+    geom_line() +
+    labs(x = "Date", y = "$\\texttt{metro} - \\texttt{metro.lin}$") +
+    scale_x_continuous(minor_breaks = seq(1996, 2020, 1))
+```
+
+## Identification and Estimation with outlier treatment
+
+Now, we repeat the process done on the previous sections but using
+the linearlized data series with the outliers treated.
+
+
+```{r 050-acf-pacf-regular, echo=FALSE, dev="tikz", fig.width=7, fig.cap="ACF and PACF of the series with regular difference"}
+d1d12metro.lin <- diff(diff(metro.lin, 12))
+ggAcf(d1d12metro.lin, lag.max = 48) + plot_spacer() + ggPacf(d1d12metro.lin, lag.max = 48) +
+    plot_annotation(title = "Series: \\texttt{d1d12metro}") +
+    plot_layout(widths = c(4, 0.5, 4)) &
+    ylim(-1, 1) & labs(title = "") &
+    theme(aspect.ratio = 1) &
+    scale_x_continuous(
+        breaks = seq(0, 48, 12),
+        # minor_breaks = seq(3, 24, 3)
+    )
+```
+
+In this case, the $AR(2),\, SMA(2)$ is more clear than our proposed model 2
+which was $MA(1),\, SMA(1)$
+
+There may also be a trimestral seasonal pattern visible (every 3 months).
+
+### Modelling the ARIMAX
+
+We now fit the $SARIMA(2,0,0)(0,0,3)_{12}$ to our transformed `d1d12metro.lin`
+and check if the coefficients are significant:
+```{r 050-model}
+(mod.lin <- arima(d1d12metro.lin, order = c(2, 0, 0), seasonal = list(order = c(0, 0, 3), period = 12)))
+abs(mod.lin$coef / sqrt(diag(mod.lin$var.coef)))
+```
+
+We see that the intercept is not significant, which is good, and also that the
+third seasonal MA coefficient is not significant. We remove it and now compute
+the $SARMIA(2,1,0)(0,1,2)_{12}$ on top of `metro.lin`:
+
+```{r 050-model-2}
+(mod.lin <- arima(metro.lin, order = c(2, 1, 0), seasonal = list(order = c(0, 1, 2), period = 12)))
+abs(mod.lin$coef / sqrt(diag(mod.lin$var.coef)))
+```
+
+The $AIC$ has decreased, which indicates that it is a better model than the one
+with $SMA_3$ and the intercept.
+
+```{r 050-validation}
+validation(mod.lin, d1d12metro.lin)
+```
+
+The validation results show that the residuals follow a normal distribution
+with homostedasticity, which means that they are compatible with white noise.
+This is a better result that what we obtained with our other methods, where
+at least on test rejected the null hypothesis of normality in the residuals.
+
+### Comparison with the previous model
+
+Now we do out-of-sample predictions to check how the model
+behaves when compared with the previous one on known data.
+
+```{r 050-oob, echo = TRUE}
+ultim <- c(2018, 12)
+
+pdq <- c(2, 1, 0)
+PDQ <- c(0, 1, 2)
+
+serie1 <- window(metro.lin, end = ultim + c(1, 0))
+serie2 <- window(metro.lin, end = ultim)
+
+(mod.lin_full <- arima(serie1, order = pdq, seasonal = list(order = PDQ, period = 12)))
+(mod.lin_part <- arima(serie2, order = pdq, seasonal = list(order = PDQ, period = 12)))
+```
+
+The stability is preserved in the linear model for the last year.
+
+```{r 050-predict-mod-lin, echo=TRUE}
+pred.lin <- predict(mod.lin_part, n.ahead = 12)
+
+pr <- pred.lin$pred
+obs <- window(metro.lin, start = ultim)
+mod.lin.RMSE1 <- sqrt(sum((obs - pr)^2) / 12)
+mod.lin.MAE1 <- sum(abs(obs - pr)) / 12
+mod.lin.RMSPE1 <- sqrt(sum(((obs - pr) / obs)^2) / 12)
+mod.lin.MAPE1 <- sum(abs(obs - pr) / obs) / 12
+mod.lin.meanCI <- 1.96 * 2 * mean(pred.lin$se)
+
+(mod.lin.stats <- data.frame(
+    "RMSE" = mod.lin.RMSE1, "MAE" = mod.lin.MAE1, "RMSPE" = mod.lin.RMSPE1, "MAPE" = mod.lin.MAPE1,
+    "mean CI" = mod.lin.meanCI
+)) %>%
+    kable(booktabs = TRUE, caption = "Linear Model metrics")
+```
+
+```{r 050-oobplot, fig.cap="Out-of-sample predictions for model with and without outlier treatment"}
+df <- tibble(passengers = metro, date = time(metro))
+wLS <- sum(mod.atip$atip[mod.atip$atip$type_detected == "LS" & mod.atip$atip$Obs <= length(metro) - 12, 3])
+
+predic <- pred.lin$pr + wLS
+
+dfpred.lin <- tibble(passengers = predic, date = time(pred.lin$pred), se = pred.lin$se)
+
+# add last column of df to dfpred1
+lst <- tail(serie2, 1) + wLS
+dfpred2_add <- dfpred2 %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    )
+
+dfpred.lin %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    ) %>%
+    ggplot(aes(x = date, y = passengers)) +
+    geom_line(data = df) +
+    geom_point(data = df) +
+    geom_line(aes(color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction")) +
+    geom_point(aes(color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction")) +
+    geom_line(aes(y = passengers + 1.96 * se, color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction"), linetype = "dashed") +
+    geom_line(aes(y = passengers - 1.96 * se, color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction"), linetype = "dashed") +
+    geom_line(data = dfpred2_add, aes(color = "$ARIMA(0,1,1)(0,1,1)_{12}$")) +
+    geom_point(data = dfpred2_add, aes(color = "$ARIMA(0,1,1)(0,1,1)_{12}$")) +
+    geom_line(data = dfpred2_add, aes(y = passengers + 1.96 * se, color = "$ARIMA(0,1,1)(0,1,1)_{12}$"), linetype = "dashed") +
+    geom_line(data = dfpred2_add, aes(y = passengers - 1.96 * se, color = "$ARIMA(0,1,1)(0,1,1)_{12}$"), linetype = "dashed") +
+    labs(
+        title = "Predictions of models obtained with and without outlier correction",
+        x = "Time",
+        y = "Passengers",
+        color = "Model"
+    ) +
+    lims(x = c(2017, NA)) +
+    theme(legend.position = c(0.70, 0.15))
+
+mod2.stats %>%
+    add_row(mod.lin.stats) %>%
+    add_column(row = c(
+        "$ARIMA(0,1,1)(0,1,1)_{12}$",
+        "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out"
+    )) %>%
+    add_column(AIC = c(mod2$aic, mod.lin$aic)) %>%
+    add_column(sigma2 = c(mod2$sigma2, mod.lin$sigma2)) %>%
+    column_to_rownames("row") %>%
+    kable(booktabs = TRUE, caption = "Metric comparison", escape = FALSE) %>%
+    kable_styling(latex_options = "scale_down")
+```
+
+We can see that the new model with outlier treatment adjusts better to the
+values at the end of 2019 than the one we had before, despite not being as
+accurate in the middle of the year. Nevertheless, the data is still inside the
+95% confidence interval.
+
+Looking at table \@ref{tab:050-oobplot}, we can see the different metrics of the
+two models. We notice that all the metrics related to the error of the
+prediction are better on the previous model (the one without outlier
+correction), but the AIC criterion and $\sigma^2$ are lower in the outlier
+treatment model, despite it having more variables.
+
+Given that and the fact that the predictions on the final values of the year are
+more accurate on the model with outlier treatment, we conclude that the model
+with outlier treatment is a better fit for the data despite the worse RMSE
+values.
+
+\clearpage
+### Long term predictions with the model
+
+Finally, we plot the predictions for the next year on the two models. Once
+again, the difference between the two is minimal, and the only notable
+differences are the slightly higher values on the first and last months of the year
+for `metro.lin`.
+
+```{r 050-longterm, fig.cap="Final long term predictions"}
+pred.lin <- predict(mod.lin_full, n.ahead = 12)
+
+pr <- pred.lin$pred
+obs <- window(metro.lin, start = ultim)
+
+df <- tibble(passengers = metro, date = time(metro))
+wLS <- sum(mod.atip$atip[mod.atip$atip$type_detected == "LS", 3])
+
+predic <- pred.lin$pr + wLS
+
+dfpred.lin <- tibble(passengers = predic, date = time(pred.lin$pred), se = pred.lin$se)
+
+# add last column of df to dfpred1
+lst <- tail(serie1, 1) + wLS
+dfpred2_add <- dfpred2_new %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    )
+
+dfpred.lin %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    ) %>%
+    ggplot(aes(x = date, y = passengers)) +
+    geom_line(data = df) +
+    geom_point(data = df) +
+    geom_line(aes(color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction")) +
+    geom_point(aes(color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction")) +
+    geom_line(aes(y = passengers + 1.96 * se, color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction"), linetype = "dashed") +
+    geom_line(aes(y = passengers - 1.96 * se, color = "$ARIMA(2,1,0)(0,1,2)_{12}$ + Out correction"), linetype = "dashed") +
+    geom_line(data = dfpred2_add, aes(color = "$ARIMA(0,1,1)(0,1,1)_{12}$")) +
+    geom_point(data = dfpred2_add, aes(color = "$ARIMA(0,1,1)(0,1,1)_{12}$")) +
+    geom_line(data = dfpred2_add, aes(y = passengers + 1.96 * se, color = "$ARIMA(0,1,1)(0,1,1)_{12}$"), linetype = "dashed") +
+    geom_line(data = dfpred2_add, aes(y = passengers - 1.96 * se, color = "$ARIMA(0,1,1)(0,1,1)_{12}$"), linetype = "dashed") +
+    labs(
+        title = "Predictions of models obtained with and without outlier correction",
+        x = "Time",
+        y = "Passengers",
+        color = "Model"
+    ) +
+    lims(x = c(2017, NA)) +
+    theme(legend.position = c(0.70, 0.15))
+```
+
+# Conclusions
+
+There are a lot of variables that affect the use of public transport,
+the price of the tickets, the creation of new stations, weather events,
+societal change, pollution reduction policies...
+
+Contrarily to what we thought, the last few years (2015-2019) did not differ
+from the rest noticeably despite the multiple changes in policies aimed towards
+the reduction of car traffic in Barcelona. We expected a level shift on the
+outlier detection but we did not saw any. This may be due to the fact that the
+more strict policies have been implemented past 2019 which is outside our
+dataset, or because the potential metro use increase has been offset by
+the proliferation of other methods of transport such as electric scooters.
+
+Another surprising fact was that the economic crisis of 2008 did not
+seem to incur any significant change in the use of the metro in Barcelona
+whilst the effects of the crisis of 2012 produced a level shift which is
+still present at the end of our dataset.

@@ -1,2 +1,36 @@
 # Predictions
 
+Now, we predict the data for the next year (the next 12 months):
+
+```{r 040-pred, fig.cap="Long term predictions using the best model"}
+pred2_new <- predict(mod2_full, n.ahead = 12)
+
+df <- tibble(passengers = metro, date = time(metro))
+dfpred2_new <- tibble(passengers = pred2_new$pred, date = time(pred2_new$pred), se = pred2_new$se)
+# we add last column of df to dfpred2 so that lines connect
+lst <- tail(serie1, 1)
+dfpred2_new %>%
+    add_row(
+        tibble_row(
+            passengers = as.numeric(lst), date = time(lst),
+            se = 0
+        ),
+        .before = 1
+    ) %>%
+    ggplot(aes(x = date, y = passengers)) +
+    geom_line(data = df) +
+    geom_point(data = df) +
+    geom_line(color = 2) +
+    geom_point(color = 2) +
+    geom_line(aes(y = passengers + 1.96 * se), linetype = "dashed", color = 2) +
+    geom_line(aes(y = passengers - 1.96 * se), linetype = "dashed", color = 2) +
+    labs(
+        title = "Long-term Predictions of model 2",
+        x = "Time",
+        y = "Passengers"
+    ) +
+    lims(x = c(2017, NA))
+```
+
+The predicted values seem what one would expect a priori without
+any significant issues. The confidence intervals are also reasonable.
