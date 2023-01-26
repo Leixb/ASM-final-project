@@ -108,7 +108,7 @@ outdetec <- function(object, dif = c(0, 0), crit, LS = T) {
 }
 
 
-# funció per linealitzar la serie.
+# funcio per linealitzar la serie.
 
 lineal <- function(serie, atip) {
     m <- length(serie)
@@ -124,4 +124,3 @@ lineal <- function(serie, atip) {
 
     return(serie)
 }
-
